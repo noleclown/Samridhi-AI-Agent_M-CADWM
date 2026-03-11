@@ -470,10 +470,98 @@ def record_feedback(q, ans, vote):
 # GREETING
 # ==============================
 
+GREETINGS = [
+    "hi","hello","hey","good morning","good evening","good afternoon",
+    "namaste","namaskar","नमस्ते","हेलो","हाय","howdy","greetings",
+    "helo","hii","helo","hiya","sup","wassup"
+]
+
 def is_greeting(t):
-    g = ["hi","hello","hey","good morning","good evening",
-         "namaste","namaskar","नमस्ते","हेलो","हाय"]
-    return any(t.lower().strip().startswith(x) for x in g)
+    t = t.lower().strip()
+    return any(t.startswith(g) for g in GREETINGS) and len(t.split()) <= 5
+
+
+# ==============================
+# TYPO CORRECTION
+# ==============================
+
+def correct_typos(question):
+    """Use LLM to lightly correct typos before searching."""
+    try:
+        prompt = (
+            "Fix any spelling mistakes or typos in the following query. "
+            "Return ONLY the corrected query, nothing else. "
+            "Do not change meaning or add words.\n\n"
+            f"Query: {question}"
+        )
+        corrected = llm.invoke([HumanMessage(content=prompt)]).content.strip()
+        # Safety: if LLM returns something wildly different, use original
+        if len(corrected) > len(question) * 2 or len(corrected) < 2:
+            return question
+        return corrected
+    except Exception:
+        return question
+
+
+# ==============================
+# GENERAL KNOWLEDGE FALLBACK
+# ==============================
+
+RELATED_TOPICS = [
+    "water","irrigation","agriculture","farming","crop","dam","canal",
+    "river","scheme","government","ministry","portal","smis","cadwm",
+    "mcadwm","pmksy","kisan","farmer","soil","drainage","flood",
+    "watershed","groundwater","silt","wus","imti","fund","subsidy",
+    "registration","application","form","document","certificate",
+    "sarkar","yojana","विभाग","सिंचाई","पानी","कृषि","किसान","योजना"
+]
+
+def is_related_topic(question):
+    q = question.lower()
+    return any(kw in q for kw in RELATED_TOPICS)
+
+def general_fallback(question, corrected_q):
+    """Answer from general knowledge, clearly labeled."""
+    if lang == "hi":
+        prompt = f"""आप समृद्धि हैं — एक मददगार और गर्मजोशी से भरे AI सहायक।
+
+उपयोगकर्ता ने यह सवाल पूछा है: "{corrected_q}"
+
+MCADWM दस्तावेज़ों में इस विषय पर सीधी जानकारी नहीं मिली।
+
+निर्देश:
+- अपने सामान्य ज्ञान से एक उपयोगी, संक्षिप्त उत्तर दें।
+- उत्तर की शुरुआत में विनम्रता से बताएं कि यह MCADWM दस्तावेज़ों से नहीं है।
+- यदि प्रश्न कृषि, सिंचाई, सरकारी योजनाओं या पानी से संबंधित है तो विस्तार से बताएं।
+- यदि प्रश्न बिल्कुल असंबंधित है (जैसे मनोरंजन, खेल) तो विनम्रता से बताएं।
+- हमेशा उपयोगकर्ता को MCADWM से संबंधित प्रश्न पूछने के लिए प्रोत्साहित करें।
+
+उत्तर:"""
+    else:
+        scope_note = (
+            "Since this relates to agriculture, water, or government schemes, "
+            "provide a helpful and informative answer from general knowledge."
+            if is_related_topic(corrected_q) else
+            "This seems outside MCADWM's scope. Politely let the user know and "
+            "gently redirect them to ask about MCADWM, irrigation, or water management."
+        )
+        prompt = f"""You are Samridhi — a warm, helpful AI assistant for the MCADWM scheme and SMIS portal.
+
+The user asked: "{corrected_q}"
+
+The MCADWM documents don't have a direct answer to this question.
+
+Instructions:
+- Start with a brief, warm acknowledgment (e.g., "That's a great question!")
+- Clearly but kindly mention this isn't covered in the MCADWM documents
+- {scope_note}
+- Keep the tone conversational and human — never cold or robotic
+- End by inviting them to ask anything about MCADWM, SMIS, or water management
+- Do NOT say "I cannot help" — always give SOMETHING useful
+
+Answer:"""
+
+    return llm.invoke([HumanMessage(content=prompt)]).content
 
 
 # ==============================
@@ -481,63 +569,111 @@ def is_greeting(t):
 # ==============================
 
 def ask_rag(question):
-    if is_greeting(question):
-        return ui["welcome"]
 
+    # ── Greeting ──────────────────────────────────────────────────
+    if is_greeting(question):
+        if lang == "hi":
+            return (
+                "नमस्ते! 😊 मैं समृद्धि हूँ — MCADWM और SMIS पोर्टल के लिए "
+                "आपकी AI सहायक। आप MCADWM योजना, SMIS पोर्टल, जल उपयोगकर्ता "
+                "समिति, सिंचाई, या किसी भी संबंधित विषय पर मुझसे पूछ सकते हैं। "
+                "बताइए, मैं आपकी कैसे मदद कर सकती हूँ? 🌾"
+            )
+        return (
+            "Hello! 😊 I'm Samridhi, your AI assistant for the MCADWM scheme "
+            "and SMIS portal. I'm here to help you with anything related to "
+            "MCADWM, irrigation, Water User Societies, SMIS registration, "
+            "and more. What would you like to know today? 🌾"
+        )
+
+    # ── Feedback cache ────────────────────────────────────────────
     cached = get_cached(question)
     if cached:
         return ui["cached_note"] + cached
 
-    # Try FAISS first
-    docs, confidence = retrieve_docs(question)
+    # ── Typo correction ───────────────────────────────────────────
+    corrected_q = correct_typos(question)
+    if corrected_q.lower() != question.lower():
+        typo_note = f"*🔤 I noticed a small typo — answering for: \"{corrected_q}\"*\n\n"
+    else:
+        typo_note = ""
+
+    search_q = corrected_q
+
+    # ── Layer 1: FAISS ────────────────────────────────────────────
+    docs, confidence = retrieve_docs(search_q)
     source_note = ""
 
-    # If FAISS confidence is low (<0.35), fetch live from cadwm.gov.in
-    if confidence < 0.35 or not docs:
-        with st.spinner("🌐 Searching cadwm.gov.in for latest info..."):
-            live_context = fetch_live_context(question)
-        if live_context:
-            context = live_context
-            source_note = "\n\n---\n*📡 Answer sourced from live cadwm.gov.in*"
-        elif docs:
-            context = "\n\n---\n\n".join(d.page_content for d in docs)
-        else:
-            return ui["no_result"]
-    else:
+    if confidence >= 0.35 and docs:
         context = "\n\n---\n\n".join(d.page_content for d in docs)
 
-    if lang == "hi":
-        prompt = f"""आप समृद्धि हैं — MCADWM और SMIS के विशेषज्ञ AI सहायक।
+        if lang == "hi":
+            prompt = f"""आप समृद्धि हैं — MCADWM और SMIS के विशेषज्ञ AI सहायक।
+आप गर्मजोशी से भरे, पेशेवर और मददगार हैं।
 
 निर्देश:
 - नीचे दिए संदर्भ से पूर्ण, विस्तृत और सुव्यवस्थित उत्तर हिंदी में दें।
 - शीर्षक, बुलेट पॉइंट और क्रमांकित सूचियाँ उपयोग करें।
-- यदि जानकारी संदर्भ में नहीं है तो स्पष्ट कहें।
+- उत्तर की शुरुआत एक गर्मजोशी भरे वाक्य से करें।
+- यदि जानकारी संदर्भ में नहीं है तो विनम्रता से बताएं।
 
 संदर्भ:
 {context}
 
-प्रश्न: {question}
+प्रश्न: {search_q}
 
 विस्तृत उत्तर:"""
-    else:
-        prompt = f"""You are Samridhi, an expert AI assistant for the MCADWM scheme and SMIS portal.
+        else:
+            prompt = f"""You are Samridhi — a warm, expert AI assistant for the MCADWM scheme and SMIS portal.
 
 Instructions:
-- Give a COMPLETE, DETAILED, WELL-STRUCTURED answer using only the context below.
-- Use ## headings, bullet points, and numbered lists.
-- Cover ALL aspects. Do not summarise briefly if detail is asked.
-- Do NOT invent information outside the context.
+- Begin with a brief warm sentence acknowledging the question
+- Give a COMPLETE, DETAILED, WELL-STRUCTURED answer using the context below
+- Use ## headings, bullet points, and numbered lists
+- Cover ALL aspects thoroughly
+- Do NOT invent information outside the context
+- End with an offer to help further
 
 Context from official MCADWM documents:
 {context}
 
-Question: {question}
+Question: {search_q}
 
-Detailed structured answer:"""
+Answer:"""
 
-    answer = llm.invoke([HumanMessage(content=prompt)]).content
-    return answer + source_note
+        answer = llm.invoke([HumanMessage(content=prompt)]).content
+        return typo_note + answer
+
+    # ── Layer 2: Live cadwm.gov.in ────────────────────────────────
+    with st.spinner("🌐 Checking cadwm.gov.in for the latest information..."):
+        live_context = fetch_live_context(search_q)
+
+    if live_context:
+        source_note = "\n\n---\n*📡 This answer was sourced from the live cadwm.gov.in website.*"
+        if lang == "hi":
+            prompt = f"""आप समृद्धि हैं — MCADWM और SMIS के विशेषज्ञ AI सहायक।
+
+संदर्भ (cadwm.gov.in से):
+{live_context}
+
+प्रश्न: {search_q}
+
+कृपया संदर्भ के आधार पर विस्तृत और गर्मजोशी भरा उत्तर दें:"""
+        else:
+            prompt = f"""You are Samridhi — a warm, expert AI assistant for MCADWM and SMIS.
+
+Context (from cadwm.gov.in):
+{live_context}
+
+Question: {search_q}
+
+Give a warm, detailed, well-structured answer based on the context above:"""
+
+        answer = llm.invoke([HumanMessage(content=prompt)]).content
+        return typo_note + answer + source_note
+
+    # ── Layer 3: General knowledge fallback ───────────────────────
+    return typo_note + general_fallback(question, corrected_q)
 
 
 # ==============================
