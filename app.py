@@ -24,8 +24,19 @@ FAISS_PATH    = os.path.join(BASE_DIR, "faiss_index")
 LOGO_PATH     = os.path.join(BASE_DIR, "logo.png")
 FEEDBACK_FILE = os.path.join(BASE_DIR, "feedback_cache.json")
 
-load_dotenv()  # works locally; Streamlit Cloud uses st.secrets
-groq_api_key = os.getenv("GROQ_API_KEY") or st.secrets.get("GROQ_API_KEY", "")
+load_dotenv()
+
+# Robust key loading: works locally (.env) and on Streamlit Cloud (st.secrets)
+def _get_secret(key):
+    val = os.getenv(key)
+    if val:
+        return val
+    try:
+        return st.secrets[key]
+    except Exception:
+        return None
+
+groq_api_key = _get_secret("GROQ_API_KEY")
 
 st.set_page_config(
     page_title="Samridhi – MCADWM",
