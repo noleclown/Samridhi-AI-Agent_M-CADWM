@@ -110,7 +110,7 @@ function injectMicIntoInputBar() {
     if (P.getElementById('samridhi-mic')) return;
     var inputWrapper = P.querySelector('[data-testid="stChatInput"]')
                     || P.querySelector('.stChatInput');
-    if (!inputWrapper) { setTimeout(injectMicIntoInputBar, 400); return; }
+    if (!inputWrapper) return;
 
     var btn = P.createElement('button');
     btn.id = 'samridhi-mic';
@@ -136,7 +136,14 @@ function injectMicIntoInputBar() {
         else { startMic(); }
     };
 }
+
+// Initial injection
 injectMicIntoInputBar();
+
+// Re-inject after every Streamlit rerun (DOM mutation)
+new MutationObserver(function() {
+    injectMicIntoInputBar();
+}).observe(P.body, { childList: true, subtree: true });
 
 function showStatus(msg) {
     var el = getStatusEl();
@@ -289,17 +296,15 @@ with lcol2:
     en_type = "primary" if lang == "en" else "secondary"
     if st.button("🇬🇧 EN", type=en_type, use_container_width=True):
         st.session_state.lang = "en"
-        st.markdown("<script>setMicLang('en-IN')</script>", unsafe_allow_html=True)
-        if not st.session_state.messages:
-            st.session_state.messages = [{"role":"assistant","content": UI["en"]["welcome"]}]
+        st.session_state.messages = [{"role":"assistant","content": UI["en"]["welcome"]}]
+        st.session_state.pending_feedback = {}
         st.rerun()
 with lcol3:
     hi_type = "primary" if lang == "hi" else "secondary"
     if st.button("🇮🇳 HI", type=hi_type, use_container_width=True):
         st.session_state.lang = "hi"
-        st.markdown("<script>setMicLang('hi-IN')</script>", unsafe_allow_html=True)
-        if not st.session_state.messages:
-            st.session_state.messages = [{"role":"assistant","content": UI["hi"]["welcome"]}]
+        st.session_state.messages = [{"role":"assistant","content": UI["hi"]["welcome"]}]
+        st.session_state.pending_feedback = {}
         st.rerun()
 
 speech_lang = "hi-IN"             if lang == "hi" else "en-IN"
