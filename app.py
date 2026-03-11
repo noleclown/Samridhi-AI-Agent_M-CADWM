@@ -575,11 +575,11 @@ def ask_rag(question):
         if lang == "hi":
             return (
                 "नमस्ते! मैं समृद्धि हूँ — MCADWM और SMIS पोर्टल के लिए "
-                "आपकी AI सहायक। बताइए, मैं आपकी कैसे मदद कर सकती हूँ? 🌾"
+                "आपकी AI सहायक। बताइए, मैं आपकी कैसे मदद कर सकती हूँ?"
             )
         return (
             "Hello! I'm Samridhi, your AI assistant for the MCADWM scheme "
-            "and SMIS portal. What would you like to know today? 🌾"
+            "and SMIS portal. What would you like to know today?"
         )
 
     # ── Feedback cache ────────────────────────────────────────────
@@ -590,7 +590,7 @@ def ask_rag(question):
     # ── Typo correction ───────────────────────────────────────────
     corrected_q = correct_typos(question)
     if corrected_q.lower() != question.lower():
-        typo_note = f"*🔤 I noticed a small typo — answering for: \"{corrected_q}\"*\n\n"
+        typo_note = f"*I noticed a small typo — answering for: \"{corrected_q}\"*\n\n"
     else:
         typo_note = ""
 
@@ -645,7 +645,7 @@ Answer:"""
         live_context = fetch_live_context(search_q)
 
     if live_context:
-        source_note = "\n\n---\n*📡 This answer was sourced from the live cadwm.gov.in website.*"
+        source_note = "\n\n---\n*This answer was sourced from the live cadwm.gov.in website.*"
         if lang == "hi":
             prompt = f"""आप समृद्धि हैं — MCADWM और SMIS के विशेषज्ञ AI सहायक।
 
