@@ -6,6 +6,9 @@ import streamlit as st
 import asyncio
 import edge_tts
 import re
+import requests
+from bs4 import BeautifulSoup
+from urllib.parse import urljoin, urlparse
 from dotenv import load_dotenv
 from datetime import datetime
 
@@ -347,6 +350,60 @@ vector_db = load_vector_db()
 
 
 # ==============================
+# LIVE WEB FETCH (fallback)
+# ==============================
+
+CADWM_BASE = "http://cadwm.gov.in/"
+WEB_HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; SamridhiBot/1.0)"}
+
+def fetch_live_context(question, max_pages=3):
+    """Search cadwm.gov.in live for the question keywords."""
+    try:
+        # Search Google for site-specific results
+        query = f"site:cadwm.gov.in {question}"
+        search_url = f"https://www.google.com/search?q={requests.utils.quote(query)}&num=5"
+        resp = requests.get(search_url, headers={
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+        }, timeout=8)
+        soup = BeautifulSoup(resp.text, "html.parser")
+
+        # Extract result URLs from Google
+        urls = []
+        for a in soup.select("a[href]"):
+            href = a["href"]
+            if "/url?q=http://cadwm.gov.in" in href:
+                actual = href.split("/url?q=")[1].split("&")[0]
+                if actual not in urls:
+                    urls.append(actual)
+            if len(urls) >= max_pages:
+                break
+
+        # Fallback: just fetch homepage if no results
+        if not urls:
+            urls = [CADWM_BASE]
+
+        # Scrape each URL
+        texts = []
+        for url in urls[:max_pages]:
+            try:
+                r = requests.get(url, headers=WEB_HEADERS, timeout=8)
+                s = BeautifulSoup(r.text, "html.parser")
+                for tag in s(["script","style","nav","footer","header","aside"]):
+                    tag.decompose()
+                text = s.get_text(separator=" ", strip=True)
+                text = re.sub(r'\s{2,}', ' ', text)
+                if len(text) > 200:
+                    texts.append(f"[Source: {url}]\n{text[:3000]}")
+            except Exception:
+                pass
+
+        return "\n\n---\n\n".join(texts) if texts else None
+
+    except Exception as e:
+        return None
+
+
+# ==============================
 # HYBRID RETRIEVAL
 # ==============================
 
@@ -368,7 +425,8 @@ def retrieve_docs(question, k=10, max_dist=1.4):
         kw  = keyword_score(doc.page_content, words)
         scored.append((doc, 0.6 * sem + 0.4 * kw))
     scored.sort(key=lambda x: x[1], reverse=True)
-    return [d for d, _ in scored[:k]]
+    best_score = scored[0][1] if scored else 0.0
+    return [d for d, _ in scored[:k]], best_score
 
 
 # ==============================
@@ -430,11 +488,23 @@ def ask_rag(question):
     if cached:
         return ui["cached_note"] + cached
 
-    docs = retrieve_docs(question)
-    if not docs:
-        return ui["no_result"]
+    # Try FAISS first
+    docs, confidence = retrieve_docs(question)
+    source_note = ""
 
-    context = "\n\n---\n\n".join(d.page_content for d in docs)
+    # If FAISS confidence is low (<0.35), fetch live from cadwm.gov.in
+    if confidence < 0.35 or not docs:
+        with st.spinner("🌐 Searching cadwm.gov.in for latest info..."):
+            live_context = fetch_live_context(question)
+        if live_context:
+            context = live_context
+            source_note = "\n\n---\n*📡 Answer sourced from live cadwm.gov.in*"
+        elif docs:
+            context = "\n\n---\n\n".join(d.page_content for d in docs)
+        else:
+            return ui["no_result"]
+    else:
+        context = "\n\n---\n\n".join(d.page_content for d in docs)
 
     if lang == "hi":
         prompt = f"""आप समृद्धि हैं — MCADWM और SMIS के विशेषज्ञ AI सहायक।
@@ -466,7 +536,8 @@ Question: {question}
 
 Detailed structured answer:"""
 
-    return llm.invoke([HumanMessage(content=prompt)]).content
+    answer = llm.invoke([HumanMessage(content=prompt)]).content
+    return answer + source_note
 
 
 # ==============================
