@@ -19,24 +19,21 @@ from langchain_core.messages import HumanMessage
 # CONFIG
 # ==============================
 
-BASE_DIR      = os.path.dirname(os.path.abspath(__file__))
+BASE_DIR      = r"C:\Users\lenovo\Desktop\M-CADWM_AI_Agent"
 FAISS_PATH    = os.path.join(BASE_DIR, "faiss_index")
 LOGO_PATH     = os.path.join(BASE_DIR, "logo.png")
 FEEDBACK_FILE = os.path.join(BASE_DIR, "feedback_cache.json")
 
 load_dotenv()
 
-# Robust key loading: works locally (.env) and on Streamlit Cloud (st.secrets)
-def _get_secret(key):
-    val = os.getenv(key)
-    if val:
-        return val
+# Read API key — works both locally (.env) and on Streamlit Cloud (secrets)
+groq_api_key = os.getenv("GROQ_API_KEY")
+if not groq_api_key:
     try:
-        return st.secrets[key]
+        groq_api_key = st.secrets["GROQ_API_KEY"]
     except Exception:
-        return None
-
-groq_api_key = _get_secret("GROQ_API_KEY")
+        st.error("GROQ_API_KEY not found. Add it to Streamlit Cloud secrets or your .env file.")
+        st.stop()
 
 st.set_page_config(
     page_title="Samridhi – MCADWM",
@@ -357,7 +354,7 @@ st.markdown(f"""
 def load_vector_db():
     emb = HuggingFaceEmbeddings(
         model_name="sentence-transformers/all-MiniLM-L6-v2",
-        cache_folder=os.path.join(BASE_DIR, "models")
+        cache_folder="models"
     )
     return FAISS.load_local(FAISS_PATH, emb, allow_dangerous_deserialization=True)
 
@@ -512,7 +509,7 @@ def clean_tts(text):
     return text.strip()
 
 async def _gen_audio(text, voice, rate):
-    await edge_tts.Communicate(text=text, voice=voice, rate=rate).save(os.path.join(BASE_DIR, "response.mp3"))
+    await edge_tts.Communicate(text=text, voice=voice, rate=rate).save("response.mp3")
 
 def speak(text):
     loop = asyncio.new_event_loop()
@@ -521,7 +518,7 @@ def speak(text):
     loop.close()
 
 def autoplay_audio():
-    with open(os.path.join(BASE_DIR, "response.mp3"), "rb") as f:
+    with open("response.mp3","rb") as f:
         b64 = base64.b64encode(f.read()).decode()
     st.markdown(f"""
     <audio autoplay controls style="width:100%;margin-top:8px;border-radius:8px;">
