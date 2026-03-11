@@ -404,6 +404,32 @@ def fetch_live_context(question, max_pages=3):
 
 
 # ==============================
+# QUERY NORMALIZER
+# ==============================
+
+QUERY_ALIASES = {
+    "mcadwm":  "M-CADWM",
+    "m cadwm": "M-CADWM",
+    "m-cadwm": "M-CADWM",
+    "smis":    "SMIS portal",
+    "wus":     "Water User Society",
+    "wua":     "Water User Association",
+    "pmksy":   "PMKSY",
+    "cadwm":   "CADWM",
+    "ofd":     "OFD works",
+    "ofds":    "OFD works",
+    "cca":     "Culturable Command Area",
+}
+
+def normalize_query(q):
+    normalized = q
+    for alias, canonical in QUERY_ALIASES.items():
+        pattern = r'\b' + re.escape(alias) + r'\b'
+        normalized = re.sub(pattern, canonical, normalized, flags=re.IGNORECASE)
+    return normalized
+
+
+# ==============================
 # HYBRID RETRIEVAL
 # ==============================
 
@@ -411,19 +437,28 @@ def keyword_score(text, words):
     tl = text.lower()
     return sum(1 for w in words if w in tl) / max(len(words), 1)
 
-def retrieve_docs(question, k=10, max_dist=1.4):
-    candidates = vector_db.similarity_search_with_score(question, k=k * 2)
+def retrieve_docs(question, k=10, max_dist=1.5):
+    normalized = normalize_query(question)
+    queries = list(dict.fromkeys([normalized, question]))  # normalized first, deduped
+
     stops = {"a","an","the","is","are","in","on","at","to","of","and","or",
              "for","what","tell","me","how","do","can","please","give",
              "kya","hai","mujhe","batao","ke","ka","ki","aur","se"}
-    words = [w for w in re.findall(r'\w+', question.lower())
-             if w not in stops and len(w) > 2]
-    scored = []
-    for doc, dist in candidates:
-        if dist >= max_dist: continue
-        sem = 1 / (1 + dist)
-        kw  = keyword_score(doc.page_content, words)
-        scored.append((doc, 0.6 * sem + 0.4 * kw))
+
+    seen_ids, scored = set(), []
+    for q in queries:
+        words = [w for w in re.findall(r'\w+', q.lower())
+                 if w not in stops and len(w) > 2]
+        candidates = vector_db.similarity_search_with_score(q, k=k * 2)
+        for doc, dist in candidates:
+            doc_id = id(doc)
+            if doc_id in seen_ids or dist >= max_dist:
+                continue
+            seen_ids.add(doc_id)
+            sem = 1 / (1 + dist)
+            kw  = keyword_score(doc.page_content, words)
+            scored.append((doc, 0.6 * sem + 0.4 * kw))
+
     scored.sort(key=lambda x: x[1], reverse=True)
     best_score = scored[0][1] if scored else 0.0
     return [d for d, _ in scored[:k]], best_score
@@ -594,13 +629,13 @@ def ask_rag(question):
     else:
         typo_note = ""
 
-    search_q = corrected_q
+    search_q = normalize_query(corrected_q)
 
     # ── Layer 1: FAISS ────────────────────────────────────────────
     docs, confidence = retrieve_docs(search_q)
     source_note = ""
 
-    if confidence >= 0.35 and docs:
+    if confidence >= 0.25 and docs:
         context = "\n\n---\n\n".join(d.page_content for d in docs)
 
         if lang == "hi":
