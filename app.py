@@ -265,7 +265,7 @@ if "pending_feedback" not in st.session_state:
 UI = {
     "en": {
         "title":       "Samridhi – MCADWM",
-        "subtitle":    "AI Assistant for MCADWM & SMIS Portal",
+        "subtitle":    "AI Assistant",
         "welcome":     "Welcome! How may I assist you regarding MCADWM and SMIS?",
         "placeholder": "Type your question or click 🎤 to speak...",
         "spinner":     "Searching documents...",
@@ -278,7 +278,7 @@ UI = {
     },
     "hi": {
         "title":       "समृद्धि – MCADWM",
-        "subtitle":    "MCADWM और SMIS पोर्टल के लिए AI सहायक",
+        "subtitle":    "AI सहायक",
         "welcome":     "नमस्ते! MCADWM और SMIS के बारे में मैं आपकी कैसे सहायता कर सकती हूँ?",
         "placeholder": "प्रश्न टाइप करें या 🎤 दबाकर बोलें...",
         "spinner":     "दस्तावेज़ खोज रहे हैं...",
@@ -575,15 +575,11 @@ def ask_rag(question):
         if lang == "hi":
             return (
                 "नमस्ते! 😊 मैं समृद्धि हूँ — MCADWM और SMIS पोर्टल के लिए "
-                "आपकी AI सहायक। आप MCADWM योजना, SMIS पोर्टल, जल उपयोगकर्ता "
-                "समिति, सिंचाई, या किसी भी संबंधित विषय पर मुझसे पूछ सकते हैं। "
-                "बताइए, मैं आपकी कैसे मदद कर सकती हूँ? 🌾"
+                "आपकी AI सहायक। बताइए, मैं आपकी कैसे मदद कर सकती हूँ? 🌾"
             )
         return (
             "Hello! 😊 I'm Samridhi, your AI assistant for the MCADWM scheme "
-            "and SMIS portal. I'm here to help you with anything related to "
-            "MCADWM, irrigation, Water User Societies, SMIS registration, "
-            "and more. What would you like to know today? 🌾"
+            "and SMIS portal. What would you like to know today? 🌾"
         )
 
     # ── Feedback cache ────────────────────────────────────────────
