@@ -574,11 +574,11 @@ def ask_rag(question):
     if is_greeting(question):
         if lang == "hi":
             return (
-                "नमस्ते! 😊 मैं समृद्धि हूँ — MCADWM और SMIS पोर्टल के लिए "
+                "नमस्ते! मैं समृद्धि हूँ — MCADWM और SMIS पोर्टल के लिए "
                 "आपकी AI सहायक। बताइए, मैं आपकी कैसे मदद कर सकती हूँ? 🌾"
             )
         return (
-            "Hello! 😊 I'm Samridhi, your AI assistant for the MCADWM scheme "
+            "Hello! I'm Samridhi, your AI assistant for the MCADWM scheme "
             "and SMIS portal. What would you like to know today? 🌾"
         )
 
