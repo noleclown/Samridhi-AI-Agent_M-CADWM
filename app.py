@@ -39,7 +39,7 @@ if not groq_api_key:
     st.stop()
 
 st.set_page_config(
-    page_title="Samridhi – MCADWM",
+    page_title="Samridhi – M-CADWM",
     page_icon="🏛️",
     layout="centered"
 )
@@ -264,28 +264,28 @@ if "pending_feedback" not in st.session_state:
 
 UI = {
     "en": {
-        "title":       "Samridhi – MCADWM",
-        "subtitle":    "AI Assistant",
-        "welcome":     "Welcome! How may I assist you regarding MCADWM and SMIS?",
-        "placeholder": "Type your question or click 🎤 to speak...",
-        "spinner":     "Searching documents...",
-        "no_result":   "I could not find relevant information. Please rephrase your question.",
-        "cached_note": "*(Answered from helpful cache)*\n\n",
-        "fb_up":       "✅ Saved as helpful!",
-        "fb_dn":       "📝 Thanks, will improve!",
+        "title":       "Samridhi – M-CADWM",
+        "subtitle":    "AI Assistant — M-CADWM & SMIS",
+        "welcome":     "This assistant is designated for queries relating to the M-CADWM scheme, its official documents, website, and the SMIS portal. Please state your query.",
+        "placeholder": "Enter your query or click 🎤 to speak...",
+        "spinner":     "Searching M-CADWM documents...",
+        "no_result":   "No relevant information was found in the M-CADWM documents. Please refine your query.",
+        "cached_note": "*(Retrieved from feedback cache)*\n\n",
+        "fb_up":       "Feedback recorded.",
+        "fb_dn":       "Feedback recorded. Response will be reviewed.",
         "btn_en":      "🇬🇧 English",
         "btn_hi":      "🇮🇳 हिंदी",
     },
     "hi": {
-        "title":       "समृद्धि – MCADWM",
-        "subtitle":    "AI सहायक",
-        "welcome":     "नमस्ते! MCADWM और SMIS के बारे में मैं आपकी कैसे सहायता कर सकती हूँ?",
-        "placeholder": "प्रश्न टाइप करें या 🎤 दबाकर बोलें...",
-        "spinner":     "दस्तावेज़ खोज रहे हैं...",
-        "no_result":   "MCADWM दस्तावेज़ों में जानकारी नहीं मिली। कृपया प्रश्न दोबारा पूछें।",
-        "cached_note": "*(पहले से सहेजा गया उत्तर)*\n\n",
-        "fb_up":       "✅ धन्यवाद! सहेजा गया।",
-        "fb_dn":       "📝 धन्यवाद! बेहतर करेंगे।",
+        "title":       "समृद्धि – M-CADWM",
+        "subtitle":    "AI सहायक — M-CADWM और SMIS",
+        "welcome":     "यह सहायक M-CADWM योजना, इसके आधिकारिक दस्तावेज़ों, वेबसाइट और SMIS पोर्टल से संबंधित प्रश्नों के लिए निर्धारित है। कृपया अपना प्रश्न दर्ज करें।",
+        "placeholder": "प्रश्न दर्ज करें या 🎤 दबाकर बोलें...",
+        "spinner":     "M-CADWM दस्तावेज़ खोज रहे हैं...",
+        "no_result":   "M-CADWM दस्तावेज़ों में कोई प्रासंगिक जानकारी नहीं मिली। कृपया अपना प्रश्न पुनः दर्ज करें।",
+        "cached_note": "*(फीडबैक कैश से प्राप्त)*\n\n",
+        "fb_up":       "फीडबैक दर्ज किया गया।",
+        "fb_dn":       "फीडबैक दर्ज किया गया। उत्तर की समीक्षा की जाएगी।",
         "btn_en":      "🇬🇧 English",
         "btn_hi":      "🇮🇳 हिंदी",
     }
@@ -404,32 +404,6 @@ def fetch_live_context(question, max_pages=3):
 
 
 # ==============================
-# QUERY NORMALIZER
-# ==============================
-
-QUERY_ALIASES = {
-    "mcadwm":  "M-CADWM",
-    "m cadwm": "M-CADWM",
-    "m-cadwm": "M-CADWM",
-    "smis":    "SMIS portal",
-    "wus":     "Water User Society",
-    "wua":     "Water User Association",
-    "pmksy":   "PMKSY",
-    "cadwm":   "CADWM",
-    "ofd":     "OFD works",
-    "ofds":    "OFD works",
-    "cca":     "Culturable Command Area",
-}
-
-def normalize_query(q):
-    normalized = q
-    for alias, canonical in QUERY_ALIASES.items():
-        pattern = r'\b' + re.escape(alias) + r'\b'
-        normalized = re.sub(pattern, canonical, normalized, flags=re.IGNORECASE)
-    return normalized
-
-
-# ==============================
 # HYBRID RETRIEVAL
 # ==============================
 
@@ -437,28 +411,19 @@ def keyword_score(text, words):
     tl = text.lower()
     return sum(1 for w in words if w in tl) / max(len(words), 1)
 
-def retrieve_docs(question, k=10, max_dist=1.5):
-    normalized = normalize_query(question)
-    queries = list(dict.fromkeys([normalized, question]))  # normalized first, deduped
-
+def retrieve_docs(question, k=10, max_dist=1.4):
+    candidates = vector_db.similarity_search_with_score(question, k=k * 2)
     stops = {"a","an","the","is","are","in","on","at","to","of","and","or",
              "for","what","tell","me","how","do","can","please","give",
              "kya","hai","mujhe","batao","ke","ka","ki","aur","se"}
-
-    seen_ids, scored = set(), []
-    for q in queries:
-        words = [w for w in re.findall(r'\w+', q.lower())
-                 if w not in stops and len(w) > 2]
-        candidates = vector_db.similarity_search_with_score(q, k=k * 2)
-        for doc, dist in candidates:
-            doc_id = id(doc)
-            if doc_id in seen_ids or dist >= max_dist:
-                continue
-            seen_ids.add(doc_id)
-            sem = 1 / (1 + dist)
-            kw  = keyword_score(doc.page_content, words)
-            scored.append((doc, 0.6 * sem + 0.4 * kw))
-
+    words = [w for w in re.findall(r'\w+', question.lower())
+             if w not in stops and len(w) > 2]
+    scored = []
+    for doc, dist in candidates:
+        if dist >= max_dist: continue
+        sem = 1 / (1 + dist)
+        kw  = keyword_score(doc.page_content, words)
+        scored.append((doc, 0.6 * sem + 0.4 * kw))
     scored.sort(key=lambda x: x[1], reverse=True)
     best_score = scored[0][1] if scored else 0.0
     return [d for d, _ in scored[:k]], best_score
@@ -558,43 +523,46 @@ def is_related_topic(question):
 def general_fallback(question, corrected_q):
     """Answer from general knowledge, clearly labeled."""
     if lang == "hi":
-        prompt = f"""आप समृद्धि हैं — एक मददगार और गर्मजोशी से भरे AI सहायक।
+        prompt = f"""आप समृद्धि हैं — M-CADWM योजना, इसके आधिकारिक दस्तावेज़ों, वेबसाइट और SMIS पोर्टल के लिए एक पेशेवर AI सहायक।
 
-उपयोगकर्ता ने यह सवाल पूछा है: "{corrected_q}"
+उपयोगकर्ता का प्रश्न: "{corrected_q}"
 
-MCADWM दस्तावेज़ों में इस विषय पर सीधी जानकारी नहीं मिली।
+M-CADWM दस्तावेज़ों और वेबसाइट में इस विषय पर सीधी जानकारी उपलब्ध नहीं है।
 
 निर्देश:
-- अपने सामान्य ज्ञान से एक उपयोगी, संक्षिप्त उत्तर दें।
-- उत्तर की शुरुआत में विनम्रता से बताएं कि यह MCADWM दस्तावेज़ों से नहीं है।
-- यदि प्रश्न कृषि, सिंचाई, सरकारी योजनाओं या पानी से संबंधित है तो विस्तार से बताएं।
-- यदि प्रश्न बिल्कुल असंबंधित है (जैसे मनोरंजन, खेल) तो विनम्रता से बताएं।
-- हमेशा उपयोगकर्ता को MCADWM से संबंधित प्रश्न पूछने के लिए प्रोत्साहित करें।
+- स्पष्ट रूप से सूचित करें कि यह विषय M-CADWM दस्तावेज़ों या वेबसाइट में उपलब्ध नहीं है।
+- यदि प्रश्न M-CADWM या SMIS के व्यापक दायरे से संबंधित है, तो सामान्य ज्ञान से संक्षिप्त जानकारी प्रदान करें।
+- यदि प्रश्न M-CADWM या SMIS के दायरे से बाहर है, तो विनम्रता से उपयोगकर्ता को M-CADWM या SMIS से संबंधित प्रश्न पूछने के लिए निर्देशित करें।
+- कोई emoji उपयोग न करें — उत्तर पूर्णतः पेशेवर एवं औपचारिक होना चाहिए।
+- व्यक्तिगत या आत्मीय भाषा का उपयोग न करें।
+- प्रश्न की श्रेणी का उल्लेख न करें।
 
 उत्तर:"""
     else:
         scope_note = (
-            "Since this relates to agriculture, water, or government schemes, "
-            "provide a helpful and informative answer from general knowledge."
+            "If the query falls within the broader domain of M-CADWM or SMIS, "
+            "provide a brief and factual response from general knowledge. "
+            "Clearly note that this information is not sourced from M-CADWM official documents."
             if is_related_topic(corrected_q) else
-            "This seems outside MCADWM's scope. Politely let the user know and "
-            "gently redirect them to ask about MCADWM, irrigation, or water management."
+            "Inform the user that this query falls outside the scope of M-CADWM and SMIS, "
+            "and direct them to submit queries relevant to M-CADWM or SMIS."
         )
-        prompt = f"""You are Samridhi — a warm, helpful AI assistant for the MCADWM scheme and SMIS portal.
+        prompt = f"""You are Samridhi — a professional AI assistant designated for the M-CADWM scheme, its official documents, website, portal, and the SMIS portal.
 
-The user asked: "{corrected_q}"
+Query received: "{corrected_q}"
 
-The MCADWM documents don't have a direct answer to this question.
+This query is not covered in the M-CADWM official documents or website.
 
 Instructions:
-- Start with a brief, warm acknowledgment (e.g., "That's a great question!")
-- Clearly but kindly mention this isn't covered in the MCADWM documents
+- Clearly state that this information is not available in the M-CADWM official documents or website.
 - {scope_note}
-- Keep the tone conversational and human — never cold or robotic
-- End by inviting them to ask anything about MCADWM, SMIS, or water management
-- Do NOT say "I cannot help" — always give SOMETHING useful
+- Do NOT use any emojis — maintain a formal, government-appropriate tone throughout.
+- Do NOT use informal, warm, or personable language.
+- Do NOT begin with conversational openers.
+- Do NOT mention query categories to the user.
+- Close by directing the user to submit queries specific to M-CADWM or SMIS.
 
-Answer:"""
+Response:"""
 
     return llm.invoke([HumanMessage(content=prompt)]).content
 
@@ -609,12 +577,10 @@ def ask_rag(question):
     if is_greeting(question):
         if lang == "hi":
             return (
-                "नमस्ते! मैं समृद्धि हूँ — MCADWM और SMIS पोर्टल के लिए "
-                "आपकी AI सहायक। बताइए, मैं आपकी कैसे मदद कर सकती हूँ?"
+                "यह सहायक M-CADWM योजना, इसके आधिकारिक दस्तावेज़ों, वेबसाइट और SMIS पोर्टल से संबंधित प्रश्नों के लिए निर्धारित है। कृपया अपना प्रश्न दर्ज करें।"
             )
         return (
-            "Hello! I'm Samridhi, your AI assistant for the MCADWM scheme "
-            "and SMIS portal. What would you like to know today?"
+            "This assistant is designated for queries relating to the M-CADWM scheme, its official documents, website, and the SMIS portal. Please state your query."
         )
 
     # ── Feedback cache ────────────────────────────────────────────
@@ -625,80 +591,94 @@ def ask_rag(question):
     # ── Typo correction ───────────────────────────────────────────
     corrected_q = correct_typos(question)
     if corrected_q.lower() != question.lower():
-        typo_note = f"*I noticed a small typo — answering for: \"{corrected_q}\"*\n\n"
+        typo_note = f"*Note: A typographical correction was applied. Response addresses: \"{corrected_q}\"*\n\n"
     else:
         typo_note = ""
 
-    search_q = normalize_query(corrected_q)
+    search_q = corrected_q
 
     # ── Layer 1: FAISS ────────────────────────────────────────────
     docs, confidence = retrieve_docs(search_q)
     source_note = ""
 
-    if confidence >= 0.25 and docs:
+    if confidence >= 0.35 and docs:
         context = "\n\n---\n\n".join(d.page_content for d in docs)
 
         if lang == "hi":
-            prompt = f"""आप समृद्धि हैं — MCADWM और SMIS के विशेषज्ञ AI सहायक।
-आप गर्मजोशी से भरे, पेशेवर और मददगार हैं।
+            prompt = f"""आप समृद्धि हैं — M-CADWM योजना, इसके आधिकारिक दस्तावेज़ों, वेबसाइट और SMIS पोर्टल के लिए एक पेशेवर AI सहायक।
 
 निर्देश:
-- नीचे दिए संदर्भ से पूर्ण, विस्तृत और सुव्यवस्थित उत्तर हिंदी में दें।
+- M-CADWM दस्तावेज़ों, वेबसाइट और SMIS पोर्टल से संबंधित जानकारी को सर्वोच्च प्राथमिकता दें।
+- नीचे दिए गए संदर्भ के आधार पर पूर्ण, विस्तृत और सुव्यवस्थित उत्तर हिंदी में प्रदान करें।
 - शीर्षक, बुलेट पॉइंट और क्रमांकित सूचियाँ उपयोग करें।
-- उत्तर की शुरुआत एक गर्मजोशी भरे वाक्य से करें।
-- यदि जानकारी संदर्भ में नहीं है तो विनम्रता से बताएं।
+- कोई emoji उपयोग न करें — उत्तर पूर्णतः पेशेवर एवं औपचारिक होना चाहिए।
+- व्यक्तिगत या आत्मीय भाषा का उपयोग न करें।
+- यदि जानकारी संदर्भ में उपलब्ध नहीं है, तो विनम्रता से सूचित करें।
 
-संदर्भ:
+संदर्भ (M-CADWM आधिकारिक दस्तावेज़):
 {context}
 
 प्रश्न: {search_q}
 
-विस्तृत उत्तर:"""
+उत्तर:"""
         else:
-            prompt = f"""You are Samridhi — a warm, expert AI assistant for the MCADWM scheme and SMIS portal.
+            prompt = f"""You are Samridhi — a professional AI assistant designated for the M-CADWM scheme, its official documents, website, portal, and the SMIS portal.
 
 Instructions:
-- Begin with a brief warm sentence acknowledging the question
-- Give a COMPLETE, DETAILED, WELL-STRUCTURED answer using the context below
-- Use ## headings, bullet points, and numbered lists
-- Cover ALL aspects thoroughly
-- Do NOT invent information outside the context
-- End with an offer to help further
+- Prioritise information from M-CADWM official documents, website, and SMIS portal above all else.
+- Provide a COMPLETE, DETAILED, and WELL-STRUCTURED response based strictly on the context below.
+- Use ## headings, bullet points, and numbered lists where appropriate.
+- Do NOT use any emojis.
+- Do NOT use informal, warm, or personable language — maintain a formal, government-appropriate tone throughout.
+- Do NOT begin with conversational openers or acknowledgements.
+- Do NOT invent information not present in the context.
+- If the context does not contain sufficient information, state this clearly and concisely.
 
-Context from official MCADWM documents:
+Context (M-CADWM official documents):
 {context}
 
-Question: {search_q}
+Query: {search_q}
 
-Answer:"""
+Response:"""
 
         answer = llm.invoke([HumanMessage(content=prompt)]).content
         return typo_note + answer
 
     # ── Layer 2: Live cadwm.gov.in ────────────────────────────────
-    with st.spinner("🌐 Checking cadwm.gov.in for the latest information..."):
+    with st.spinner("Checking cadwm.gov.in for the latest information..."):
         live_context = fetch_live_context(search_q)
 
     if live_context:
-        source_note = "\n\n---\n*This answer was sourced from the live cadwm.gov.in website.*"
+        source_note = "\n\n---\n*Source: cadwm.gov.in (live)*"
         if lang == "hi":
-            prompt = f"""आप समृद्धि हैं — MCADWM और SMIS के विशेषज्ञ AI सहायक।
+            prompt = f"""आप समृद्धि हैं — M-CADWM योजना, इसके आधिकारिक दस्तावेज़ों, वेबसाइट और SMIS पोर्टल के लिए एक पेशेवर AI सहायक।
+
+निर्देश:
+- M-CADWM वेबसाइट और SMIS पोर्टल की जानकारी को सर्वोच्च प्राथमिकता दें।
+- नीचे दिए गए संदर्भ के आधार पर विस्तृत और पेशेवर उत्तर हिंदी में प्रदान करें।
+- कोई emoji उपयोग न करें। व्यक्तिगत या आत्मीय भाषा का उपयोग न करें।
 
 संदर्भ (cadwm.gov.in से):
 {live_context}
 
 प्रश्न: {search_q}
 
-कृपया संदर्भ के आधार पर विस्तृत और गर्मजोशी भरा उत्तर दें:"""
+उत्तर:"""
         else:
-            prompt = f"""You are Samridhi — a warm, expert AI assistant for MCADWM and SMIS.
+            prompt = f"""You are Samridhi — a professional AI assistant designated for the M-CADWM scheme, its official documents, website, portal, and the SMIS portal.
+
+Instructions:
+- Prioritise M-CADWM website and SMIS portal information above all else.
+- Provide a professional, detailed, and well-structured response based strictly on the context below.
+- Do NOT use any emojis. Do NOT use informal or personable language.
+- Maintain a formal, government-appropriate tone throughout.
 
 Context (from cadwm.gov.in):
 {live_context}
 
-Question: {search_q}
+Query: {search_q}
 
-Give a warm, detailed, well-structured answer based on the context above:"""
+Response:"""
 
         answer = llm.invoke([HumanMessage(content=prompt)]).content
         return typo_note + answer + source_note
