@@ -1,0 +1,84 @@
+# ════════════════════════════════════════════
+# Samridhi — Runtime Configuration  v3.0
+# Edit this file to tune behaviour.
+# No code changes needed.
+# ════════════════════════════════════════════
+
+retrieval:
+  faiss_confidence_threshold: 0.35   # minimum hybrid score to use FAISS answer
+  faiss_k: 10                         # number of docs to return from FAISS
+  faiss_max_dist: 1.4                 # maximum L2 distance to accept a FAISS hit
+  faiss_semantic_weight: 0.60         # weight for semantic score in hybrid retrieval
+  faiss_keyword_weight: 0.40          # weight for BM25-style keyword score
+  mmr_lambda: 0.5                     # 0=max diversity, 1=max relevance (MMR)
+  mmr_fetch_k: 20                     # candidates fetched before MMR re-ranking
+  context_turns: 2                    # prior conversation turns passed to LLM
+
+cache:
+  web_ttl_seconds: 86400              # persistent SQLite web cache TTL (24 hr)
+  session_web_ttl_seconds: 300        # in-memory session guard TTL (5 min)
+  feedback_reingest_min_votes: 3      # thumbs_up needed before FAISS re-ingest
+  feedback_max_age_days: 180          # entries older than this are compacted away
+  feedback_keep_min_thumbsup: 1       # entries with < this thumbs_up are also dropped
+
+llm:
+  model: "llama-3.3-70b-versatile"
+  temperature: 0.15
+  max_tokens: 1024
+  typo_skip_words: 4                  # queries ≤ this many words skip typo LLM call
+
+tts:
+  en_voice: "en-IN-NeerjaNeural"    # calm, clear Indian English female
+  hi_voice: "hi-IN-SwaraNeural"     # natural Hindi female
+  en_rate: "-5%"                    # slightly slower than default — calm and composed
+  hi_rate: "-5%"                    # same for Hindi
+
+web_scrape:
+  max_pages: 3
+  per_page_chars: 3000
+  timeout_seconds: 8
+
+analytics:
+  enabled: true
+  max_file_mb: 50                     # rotate analytics.jsonl above this size
+
+# ════════════════════════════════════════════
+# DATABASE BACKEND
+# ════════════════════════════════════════════
+# Default: sqlite  — zero setup, files created automatically.
+# To switch to PostgreSQL:
+#   1. pip install psycopg2-binary
+#   2. Change backend to "postgres" and fill postgres_url below.
+#   3. Restart the app. All three DBs (feedback, web_cache, expansions)
+#      will automatically use PostgreSQL. No code changes needed.
+# ════════════════════════════════════════════
+database:
+  backend: sqlite                     # "sqlite" or "postgres"
+  postgres_url: ""                    # e.g. "postgresql://user:pass@host:5432/samridhi"
+
+# ════════════════════════════════════════════
+# OPERATOR PANEL
+# ════════════════════════════════════════════
+# The operator panel in the sidebar shows system status, recent query
+# analytics, DB stats and expansion store details.
+# It is hidden behind a password — end users never see it.
+# Change the password below before deploying.
+# ════════════════════════════════════════════
+operator:
+  password: "samridhi-admin"          # change this before deploying
+
+ui:
+  starter_questions_en:
+    - "What is the M-CADWM scheme?"
+    - "How do I register on the SMIS portal?"
+    - "What are the eligibility criteria for WUA formation?"
+    - "What documents are required for M-CADWM beneficiaries?"
+    - "How does M-CADWM funding work?"
+    - "What is the role of a Water Users Association?"
+  starter_questions_hi:
+    - "M-CADWM योजना क्या है?"
+    - "SMIS पोर्टल पर पंजीकरण कैसे करें?"
+    - "WUA गठन के लिए पात्रता मानदंड क्या हैं?"
+    - "M-CADWM लाभार्थियों के लिए कौन से दस्तावेज़ आवश्यक हैं?"
+    - "M-CADWM में वित्त पोषण कैसे कार्य करता है?"
+    - "जल उपयोगकर्ता संघ की क्या भूमिका है?"

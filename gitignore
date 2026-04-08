@@ -1,0 +1,35 @@
+# ── Secrets ───────────────────────────────────────────────────
+.env
+.streamlit/secrets.toml
+
+# ── Runtime databases (auto-created, not in git) ──────────────
+*.db
+*.db-shm
+*.db-wal
+analytics.jsonl
+analytics.*.jsonl
+samridhi.log
+samridhi.log.*
+
+# ── Generated audio ───────────────────────────────────────────
+*.mp3
+
+# ── Python ────────────────────────────────────────────────────
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+*.egg-info/
+dist/
+build/
+
+# ── Models (large — mount as volume or download at runtime) ───
+models/
+
+# ── OS ────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── IDE ───────────────────────────────────────────────────────
+.vscode/
+.idea/

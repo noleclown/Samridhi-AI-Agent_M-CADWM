@@ -1,0 +1,11 @@
+{"ts": "2026-03-23T08:44:25.536403", "lang": "en", "query": "Hi", "intent": "", "layer": "greeting", "confidence": 0.0, "response_ms": 0.0}
+{"ts": "2026-03-23T09:50:56.660019", "lang": "en", "query": "Hi", "intent": "", "layer": "greeting", "confidence": 0.0, "response_ms": 0.0}
+{"ts": "2026-03-23T10:02:46.347142", "lang": "en", "query": "Hi", "intent": "", "layer": "greeting", "confidence": 0.0, "response_ms": 0.0}
+{"ts": "2026-03-23T10:40:17.514778", "lang": "en", "query": "what is MSW", "intent": "definition", "layer": "live", "confidence": 0.5, "response_ms": 3290.6}
+{"ts": "2026-03-23T11:36:58.942675", "lang": "en", "query": "what is 60:40?", "intent": "definition", "layer": "live", "confidence": 0.5, "response_ms": 4330.5}
+{"ts": "2026-03-23T11:37:27.454253", "lang": "en", "query": "what is 60", "intent": "definition", "layer": "live", "confidence": 0.5, "response_ms": 3504.6}
+{"ts": "2026-03-25T10:30:28.349570", "lang": "en", "query": "Hi", "intent": "", "layer": "greeting", "confidence": 0.0, "response_ms": 0.0}
+{"ts": "2026-03-25T10:52:12.452850", "lang": "en", "query": "Hi", "intent": "", "layer": "greeting", "confidence": 0.0, "response_ms": 0.0}
+{"ts": "2026-03-25T11:11:44.314012", "lang": "en", "query": "hi", "intent": "", "layer": "greeting", "confidence": 0.0, "response_ms": 0.0}
+{"ts": "2026-03-25T11:41:20.133308", "lang": "en", "query": "HI", "intent": "", "layer": "greeting", "confidence": 0.0, "response_ms": 1.0}
+{"ts": "2026-03-25T12:00:47.292489", "lang": "en", "query": "HI", "intent": "", "layer": "greeting", "confidence": 0.0, "response_ms": 0.0}
