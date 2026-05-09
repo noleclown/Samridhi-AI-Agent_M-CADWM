@@ -1,11 +1,8 @@
 """
-app.py — Samridhi AI v1.0  (M-CADWM & SMIS)
+app.py — Samridhi AI v2.0  (M-CADWM & SMIS)
 ============================================
-Public-facing AI assistant. No login required.
-Theme: dark — set in .streamlit/config.toml (framework level).
-
+Streamlit app styled to match index.html exactly.
 Run:  streamlit run app.py
-Test: pytest test_samridhi.py -v
 """
 
 from __future__ import annotations
@@ -26,42 +23,15 @@ from samridhi.ui_strings import BRIDGE_JS, UI
 
 log = get_logger()
 
-# ── constants ─────────────────────────────────────────────────
 _PENDING_FEEDBACK_MAX = 20
 _FEEDBACK_LAYERS      = frozenset({"faiss", "live", "fallback", "cache"})
 
-# Palette — dark theme accent colours only
-# Framework handles backgrounds; we only define accents + badges
-_C = {
-    "accent":           "#4A90D9",   # Streamlit primary
-    "accent_hover":     "#6AABF0",
-    "sidebar_border":   "#2A2D3E",
-    "badge_green_bg":   "rgba(34,197,94,0.15)",
-    "badge_green_fg":   "#4ade80",
-    "badge_amber_bg":   "rgba(251,146,60,0.15)",
-    "badge_amber_fg":   "#fbbf24",
-    "badge_grey_bg":    "rgba(148,163,184,0.12)",
-    "badge_grey_fg":    "#94a3b8",
-    "follow_bg":        "rgba(74,144,217,0.10)",
-    "follow_fg":        "#93c5fd",
-    "follow_border":    "rgba(74,144,217,0.30)",
-    "follow_hover_bg":  "#4A90D9",
-    "follow_hover_fg":  "#ffffff",
-    "divider":          "rgba(255,255,255,0.08)",
-    "muted":            "#8892a4",
-    "text":             "#E8ECF4",
-    "surface":          "#1A1D2E",
-    "surface2":         "#12141F",
-}
-
-# ── background TTS ────────────────────────────────────────────
 def _speak_bg(text: str, lang: str, result: list):
     try:
         result.append(speak(text, lang))
     except Exception:
         result.append("")
 
-# ── optional libs ─────────────────────────────────────────────
 try:
     import yaml as _yaml;   _HAS_YAML = True
 except ImportError:
@@ -79,8 +49,8 @@ except ImportError:
     _HAS_PDF = False
 
 # ── Logo ──────────────────────────────────────────────────────
-_logo_pil = None
-_logo_b64  = ""
+_logo_b64 = ""
+_logo_pil  = None
 if LOGO_PATH.exists():
     try:
         _logo_b64 = base64.b64encode(LOGO_PATH.read_bytes()).decode()
@@ -93,11 +63,11 @@ if LOGO_PATH.exists():
         except Exception:
             pass
 
-# ── page config ───────────────────────────────────────────────
+# ── Page config ───────────────────────────────────────────────
 st.set_page_config(
     page_title = "Samridhi AI – M-CADWM",
     page_icon  = _logo_pil if _logo_pil else "🏛️",
-    layout     = "centered",
+    layout     = "wide",
 )
 
 # ── API key guard ─────────────────────────────────────────────
@@ -110,11 +80,10 @@ if not _groq_key:
     st.error("GROQ_API_KEY not found. Add it to .env or Streamlit secrets.")
     st.stop()
 
-# ── resources ─────────────────────────────────────────────────
+# ── Resources ─────────────────────────────────────────────────
 try:
     vector_db = get_vector_db()
 except Exception as e:
-    log.error(f"FAISS load failed: {e}")
     st.error(f"Failed to load FAISS index: {e}")
     st.stop()
 
@@ -126,18 +95,17 @@ expansions  = get_expansions()
 pipeline    = Pipeline(llm, vector_db, feedback_db, web_cache, analytics,
                        expansion_store=expansions)
 
-# ── session state ─────────────────────────────────────────────
+# ── Session state ─────────────────────────────────────────────
 def _init():
     for k, v in {
-        "lang":              "en",
-        "messages":          [],
-        "pending_feedback":  {},
-        "logo_b64":          _logo_b64,
-        "reingest_done":     set(),
-        "last_answer":       "",
-        "rate_bucket":       RateLimiter.make_bucket(),
-        "tts_enabled":       True,
-        "followup_queue":    None,
+        "lang":             "en",
+        "messages":         [],
+        "pending_feedback": {},
+        "reingest_done":    set(),
+        "last_answer":      "",
+        "rate_bucket":      RateLimiter.make_bucket(),
+        "tts_enabled":      True,
+        "followup_queue":   None,
     }.items():
         if k not in st.session_state:
             st.session_state[k] = v
@@ -147,128 +115,228 @@ lang: str = st.session_state.lang
 ui:   dict = UI[lang]
 
 # ══════════════════════════════════════════════════════════════
-# CSS — minimal layer on top of Streamlit dark theme
-# Only customises surfaces the framework doesn't fully control.
-# Never overrides text colour globally (Streamlit handles that).
+# GLOBAL CSS — replicates index.html exactly
 # ══════════════════════════════════════════════════════════════
-st.markdown(f"""
+st.markdown("""
 <style>
-/* ── Chat messages ───────────────────────────────────────── */
-[data-testid="stChatMessage"] {{
-    background-color: {_C["surface"]} !important;
-    border: 1px solid {_C["divider"]} !important;
-    border-radius: 12px !important;
-    padding: 16px !important;
-    margin-bottom: 8px !important;
-}}
+/* ── Hide Streamlit chrome ───────────────────────────────── */
+#MainMenu, footer, header { visibility: hidden !important; }
+[data-testid="stToolbar"] { display: none !important; }
+[data-testid="stDecoration"] { display: none !important; }
+[data-testid="stStatusWidget"] { display: none !important; }
 
-/* ── Chat input bar — full-width dark surface ────────────── */
-[data-testid="stChatInput"],
-[data-testid="stChatInput"] > div {{
-    background-color: {_C["surface"]} !important;
-    border-top: 1px solid {_C["divider"]} !important;
-}}
-[data-testid="stChatInputTextArea"] {{
-    background-color: {_C["surface2"]} !important;
-    border: 1px solid {_C["divider"]} !important;
-    border-radius: 8px !important;
-    color: {_C["text"]} !important;
-    font-size: 15px !important;
-}}
+/* ── Root palette (matches index.html exactly) ───────────── */
+:root {
+  --bg:           #0E1117;
+  --surface:      #1A1D2E;
+  --surface2:     #12141F;
+  --border:       rgba(255,255,255,0.08);
+  --text:         #E8ECF4;
+  --muted:        #8892A4;
+  --accent:       #4A90D9;
+  --accent-hover: #5BA3EC;
+  --green:        #4ade80;
+  --amber:        #fbbf24;
+  --radius:       12px;
+}
 
-/* ── Sidebar ─────────────────────────────────────────────── */
-[data-testid="stSidebar"] {{
-    border-right: 1px solid {_C["sidebar_border"]} !important;
-}}
+/* ── Full page background ────────────────────────────────── */
+.stApp, [data-testid="stAppViewContainer"] {
+  background-color: var(--bg) !important;
+}
 
-/* ── Source badges ───────────────────────────────────────── */
-.src-badge {{
-    display: inline-block;
-    font-size: 12px;
-    font-weight: 600;
-    letter-spacing: 0.4px;
-    padding: 3px 10px;
-    border-radius: 20px;
-    margin-bottom: 10px;
-}}
-.src-badge-green {{
-    background: {_C["badge_green_bg"]};
-    color: {_C["badge_green_fg"]};
-}}
-.src-badge-amber {{
-    background: {_C["badge_amber_bg"]};
-    color: {_C["badge_amber_fg"]};
-}}
-.src-badge-grey {{
-    background: {_C["badge_grey_bg"]};
-    color: {_C["badge_grey_fg"]};
-}}
+/* ── Main block container ────────────────────────────────── */
+[data-testid="stMain"] {
+  background-color: var(--bg) !important;
+  padding: 0 !important;
+}
+.block-container {
+  padding: 0 !important;
+  max-width: 100% !important;
+}
 
-/* ── Follow-up buttons ───────────────────────────────────── */
-/* Follow-up suggestions use Streamlit st.button — styled via
-   the framework primary colour. No custom HTML buttons. */
+/* ── Sidebar — matches index.html .sidebar ───────────────── */
+[data-testid="stSidebar"] {
+  background-color: var(--surface2) !important;
+  border-right: 1px solid var(--border) !important;
+  min-width: 260px !important;
+  max-width: 260px !important;
+}
+[data-testid="stSidebar"] > div {
+  padding: 20px 14px !important;
+  background-color: var(--surface2) !important;
+}
 
-/* ── Copy button ─────────────────────────────────────────── */
-.samridhi-copy-btn {{
-    background: none;
-    border: 1px solid {_C["divider"]};
-    border-radius: 5px;
-    padding: 2px 10px;
-    font-size: 12px;
-    color: {_C["muted"]};
-    cursor: pointer;
-    margin-top: 8px;
-    transition: all 0.15s;
-}}
-.samridhi-copy-btn:hover {{
-    background: {_C["accent"]};
-    color: #fff;
-    border-color: {_C["accent"]};
-}}
+/* ── Sidebar brand ───────────────────────────────────────── */
+.sb-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 12px;
+}
+.sb-brand img {
+  width: 64px; height: 64px;
+  object-fit: contain;
+  border-radius: 8px;
+  margin-bottom: 8px;
+}
+.sb-brand .name {
+  font-weight: 700; font-size: 16px; color: var(--text);
+}
+.sb-brand .sub {
+  font-size: 11px; color: var(--muted); margin-top: 2px;
+}
 
-/* ── Mic button ──────────────────────────────────────────── */
-#samridhi-mic {{
-    background: none; border: none; border-radius: 50%;
-    width: 34px; height: 34px; font-size: 19px;
-    color: {_C["muted"]};
-    cursor: pointer; padding: 0;
-    transition: color 0.2s, transform 0.15s;
-}}
-#samridhi-mic:hover {{ color: {_C["accent"]}; transform: scale(1.15); }}
-#samridhi-mic.listening {{
-    color: {_C["accent"]};
-    animation: mic-pulse 0.8s infinite;
-}}
-@keyframes mic-pulse {{
-    0%,100% {{ text-shadow: 0 0 0px {_C["accent"]}; }}
-    50%      {{ text-shadow: 0 0 8px {_C["accent"]}; }}
-}}
-#samridhi-mic-status {{
-    position: fixed; bottom: 68px; left: 50%; transform: translateX(-50%);
-    z-index: 99999;
-    background: {_C["surface"]};
-    color: {_C["accent"]};
-    font-size: 12px;
-    padding: 5px 14px; border-radius: 10px; display: none;
-    max-width: 300px; text-align: center;
-    border: 1px solid {_C["follow_border"]};
-    pointer-events: none;
-}}
+/* ── Language toggle buttons ─────────────────────────────── */
+.lang-row { display: flex; gap: 6px; margin-bottom: 8px; }
+.lang-btn {
+  flex: 1; padding: 7px 4px;
+  border-radius: 7px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px; font-weight: 600;
+  cursor: pointer; text-align: center;
+  transition: all 0.15s;
+}
+.lang-btn.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+/* ── Sidebar buttons ─────────────────────────────────────── */
+[data-testid="stSidebar"] .stButton > button {
+  background: transparent !important;
+  border: 1px solid var(--border) !important;
+  color: var(--text) !important;
+  border-radius: 8px !important;
+  font-size: 13px !important;
+  text-align: left !important;
+  width: 100% !important;
+  transition: background 0.15s !important;
+}
+[data-testid="stSidebar"] .stButton > button:hover {
+  background: rgba(255,255,255,0.05) !important;
+  border-color: rgba(255,255,255,0.15) !important;
+}
+
+/* New conversation — primary blue button */
+.new-conv-btn > button {
+  background: var(--accent) !important;
+  border-color: var(--accent) !important;
+  color: #fff !important;
+  font-weight: 600 !important;
+  text-align: center !important;
+  border-radius: 8px !important;
+  width: 100% !important;
+}
+.new-conv-btn > button:hover {
+  background: var(--accent-hover) !important;
+}
+
+/* ── Toggle ──────────────────────────────────────────────── */
+[data-testid="stToggle"] label { color: var(--text) !important; font-size: 13px !important; }
 
 /* ── Divider ─────────────────────────────────────────────── */
-hr {{
-    border-color: {_C["divider"]} !important;
-    margin: 12px 0 !important;
-}}
+hr { border-color: var(--border) !important; margin: 10px 0 !important; }
 
-/* ── Header HR ───────────────────────────────────────────── */
-.samridhi-header-hr {{
-    border: none;
-    border-top: 1px solid {_C["divider"]};
-    margin: 8px 0 18px 0;
-}}
+/* ── Chat area ───────────────────────────────────────────── */
+.chat-header {
+  padding: 16px 24px 12px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--bg);
+}
+.chat-header .title { font-size: 16px; font-weight: 700; color: var(--text); }
+.chat-header .subtitle { font-size: 12px; color: var(--muted); }
+
+/* ── Chat messages ───────────────────────────────────────── */
+[data-testid="stChatMessage"] {
+  background-color: var(--surface) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius) !important;
+  padding: 16px !important;
+  margin-bottom: 8px !important;
+  color: var(--text) !important;
+}
+
+/* ── Chat input ──────────────────────────────────────────── */
+[data-testid="stChatInput"] {
+  background-color: var(--surface2) !important;
+  border-top: 1px solid var(--border) !important;
+}
+[data-testid="stChatInputTextArea"] {
+  background-color: var(--surface) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 8px !important;
+  color: var(--text) !important;
+  font-size: 15px !important;
+}
+[data-testid="stChatInput"] button {
+  background: var(--accent) !important;
+  border-radius: 8px !important;
+}
+
+/* ── Source badges ───────────────────────────────────────── */
+.src-badge {
+  display: inline-block;
+  font-size: 12px; font-weight: 600;
+  padding: 3px 10px; border-radius: 20px;
+  margin-bottom: 10px;
+}
+.src-badge-green { background: rgba(74,222,128,0.12); color: var(--green); }
+.src-badge-amber { background: rgba(251,191,36,0.12);  color: var(--amber); }
+.src-badge-grey  { background: rgba(148,163,184,0.10); color: var(--muted); }
+
+/* ── Copy button ─────────────────────────────────────────── */
+.samridhi-copy-btn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 3px 10px;
+  font-size: 12px;
+  color: var(--muted);
+  cursor: pointer;
+  margin-top: 8px;
+  transition: all 0.15s;
+}
+.samridhi-copy-btn:hover {
+  background: var(--accent); color: #fff; border-color: var(--accent);
+}
+
+/* ── Follow-up buttons ───────────────────────────────────── */
+.follow-label {
+  font-size: 11px; font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase; letter-spacing: 0.5px;
+  margin: 10px 0 4px 0;
+}
+
+/* ── Footer ──────────────────────────────────────────────── */
+.samridhi-footer {
+  text-align: center;
+  font-size: 11px;
+  color: var(--muted);
+  padding: 10px 24px;
+  border-top: 1px solid var(--border);
+  background: var(--surface2);
+}
+
+/* ── Expander ────────────────────────────────────────────── */
+[data-testid="stExpander"] {
+  border: 1px solid var(--border) !important;
+  border-radius: 8px !important;
+  background: transparent !important;
+}
+[data-testid="stExpander"] summary {
+  color: var(--muted) !important; font-size: 13px !important;
+}
 </style>
-<div id="samridhi-mic-status"></div>
 """, unsafe_allow_html=True)
 
 # ── JS bridge ─────────────────────────────────────────────────
@@ -278,33 +346,50 @@ components.html(BRIDGE_JS, height=0)
 # SIDEBAR
 # ══════════════════════════════════════════════════════════════
 with st.sidebar:
-
-    # Logo + name
-    _sb_logo = st.session_state.logo_b64 or _logo_b64
-    if _sb_logo:
-        st.markdown(
-            f'<div style="text-align:center;padding:16px 0 6px 0;">'
-            f'<img src="data:image/png;base64,{_sb_logo}" '
-            f'style="max-width:80px;max-height:80px;object-fit:contain;'
-            f'border-radius:8px;"></div>',
-            unsafe_allow_html=True,
-        )
+    # Brand
+    _sb_logo = _logo_b64
+    logo_html = (
+        f'<img src="data:image/png;base64,{_sb_logo}">'
+        if _sb_logo else '🏛️'
+    )
     st.markdown(
-        f'<div style="text-align:center;font-weight:700;font-size:17px;'
-        f'margin-bottom:2px;">Samridhi AI</div>'
-        f'<div style="text-align:center;font-size:12px;color:{_C["muted"]};'
-        f'margin-bottom:14px;">M-CADWM &amp; SMIS</div>',
+        f'<div class="sb-brand">'
+        f'{logo_html}'
+        f'<div class="name">Samridhi AI</div>'
+        f'<div class="sub">M-CADWM &amp; SMIS</div>'
+        f'</div>',
         unsafe_allow_html=True,
     )
+
+    # Language toggle
+    st.markdown('<div class="lang-row">', unsafe_allow_html=True)
+    _c1, _c2 = st.columns(2)
+    with _c1:
+        if st.button("🇬🇧 EN", key="btn_en",
+                     type="primary" if lang == "en" else "secondary",
+                     use_container_width=True):
+            st.session_state.lang = "en"
+            st.session_state.messages = []
+            st.session_state.pending_feedback = {}
+            st.rerun()
+    with _c2:
+        if st.button("🇮🇳 HI", key="btn_hi",
+                     type="primary" if lang == "hi" else "secondary",
+                     use_container_width=True):
+            st.session_state.lang = "hi"
+            st.session_state.messages = []
+            st.session_state.pending_feedback = {}
+            st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
+
     st.divider()
 
-    # ── Voice toggle ──────────────────────────────────────────
+    # Voice toggle
     st.session_state.tts_enabled = st.toggle(
-        ui["tts_toggle"],
-        value=st.session_state.tts_enabled,
+        ui["tts_toggle"], value=st.session_state.tts_enabled,
     )
 
-    # ── Common queries ────────────────────────────────────────
+    # Common queries
     _starters = (
         cfg["ui"]["starter_questions_hi"] if lang == "hi"
         else cfg["ui"]["starter_questions_en"]
@@ -317,15 +402,17 @@ with st.sidebar:
 
     st.divider()
 
-    # ── New conversation ──────────────────────────────────────
-    if st.button(ui["clear_chat"], use_container_width=True):
+    # New conversation
+    st.markdown('<div class="new-conv-btn">', unsafe_allow_html=True)
+    if st.button(f"+ {ui['clear_chat']}", use_container_width=True):
         st.session_state.messages         = []
         st.session_state.pending_feedback = {}
         st.session_state.last_answer      = ""
         st.session_state.followup_queue   = None
         st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
 
-    # ── PDF download ──────────────────────────────────────────
+    # PDF download
     if _HAS_PDF and st.session_state.last_answer:
         if st.button(ui["pdf_label"], use_container_width=True):
             try:
@@ -339,10 +426,8 @@ with st.sidebar:
                 story  = [
                     Paragraph("Samridhi AI — M-CADWM & SMIS", styles["Title"]),
                     Spacer(1, 12),
-                    Paragraph(
-                        f"Generated: {_dt.datetime.now().strftime('%Y-%m-%d %H:%M')}",
-                        styles["Normal"],
-                    ),
+                    Paragraph(f"Generated: {_dt.datetime.now().strftime('%Y-%m-%d %H:%M')}",
+                              styles["Normal"]),
                     Spacer(1, 12),
                 ]
                 for para in clean.split("\n\n"):
@@ -352,8 +437,7 @@ with st.sidebar:
                         story.append(Spacer(1, 8))
                 doc.build(story)
                 st.download_button(
-                    "⬇ Download PDF",
-                    data=buf.getvalue(),
+                    "⬇ Download PDF", data=buf.getvalue(),
                     file_name=f"samridhi_{int(time.time())}.pdf",
                     mime="application/pdf",
                 )
@@ -362,23 +446,21 @@ with st.sidebar:
 
     st.divider()
 
-    # ── About ─────────────────────────────────────────────────
+    # About
     with st.expander(ui["about_label"], expanded=False):
         st.markdown(
-            f'<div style="font-size:13px;line-height:1.7;color:{_C["muted"]};">'
-            f'<b style="color:{_C["text"]};">Samridhi AI</b> &nbsp;v1.0<br>'
-            f'AI Assistant for M-CADWM &amp; SMIS<br>'
-            f'Ministry of Jal Shakti<br>'
-            f'Government of India<br>'
-            f'<a href="https://cadwm.gov.in" target="_blank" '
-            f'style="color:{_C["accent"]};">cadwm.gov.in</a>'
-            f'</div>',
+            '<div style="font-size:12px;line-height:1.8;color:var(--muted);">'
+            '<b style="color:var(--text);">Samridhi AI</b> &nbsp;v2.0<br>'
+            'AI Assistant for M-CADWM &amp; SMIS<br>'
+            'Ministry of Jal Shakti<br>'
+            'Government of India<br>'
+            '<a href="https://cadwm.gov.in" target="_blank" '
+            'style="color:var(--accent);">cadwm.gov.in</a>'
+            '</div>',
             unsafe_allow_html=True,
         )
 
-    # ── Operator panel — URL-param activated, invisible to users ─
-    # Access via: ?operator=1  (append to URL, e.g. localhost:8080/?operator=1)
-    # Then type the password when prompted.
+    # Operator panel
     _params = st.query_params
     if _params.get("operator") == "1":
         _op_pw = cfg.get("operator", {}).get("password", "samridhi-admin")
@@ -396,9 +478,6 @@ with st.sidebar:
             ana_r = analytics.recent(5)
             st.markdown(
                 f"- FAISS: {'✅' if (BASE_DIR/'faiss_index').exists() else '❌'}\n"
-                f"- YAML config: {'✅' if _HAS_YAML else '⚠'}\n"
-                f"- httpx: {'✅' if _HAS_HTTPX else '⚠'}\n"
-                f"- PDF: {'✅' if _HAS_PDF else '⚠'}\n"
                 f"- Feedback: {fb_s['total']} ({fb_s['positive']} positive)\n"
                 f"- Web cache: {wc_s['total_entries']}\n"
                 f"- Expansions: {ex_s['enabled']}/{ex_s['total']}"
@@ -417,54 +496,23 @@ with st.sidebar:
                 st.rerun()
 
 # ══════════════════════════════════════════════════════════════
-# LANGUAGE TOGGLE
-# ══════════════════════════════════════════════════════════════
-_, _ec, _hc = st.columns([5, 1, 1])
-with _ec:
-    if st.button(UI["en"]["btn_en"],
-                 type="primary" if lang == "en" else "secondary",
-                 use_container_width=True):
-        st.session_state.lang = "en"
-        st.session_state.messages = []
-        st.session_state.pending_feedback = {}
-        st.rerun()
-with _hc:
-    if st.button(UI["hi"]["btn_hi"],
-                 type="primary" if lang == "hi" else "secondary",
-                 use_container_width=True):
-        st.session_state.lang = "hi"
-        st.session_state.messages = []
-        st.session_state.pending_feedback = {}
-        st.rerun()
-
-# ══════════════════════════════════════════════════════════════
-# HEADER
+# CHAT HEADER (matches index.html .chat-header)
 # ══════════════════════════════════════════════════════════════
 _hdr_logo = (
     f'<img src="data:image/png;base64,{_logo_b64}" '
-    f'style="max-height:64px;max-width:64px;object-fit:contain;'
-    f'display:block;margin:0 auto 8px auto;border-radius:6px;">'
-    if _logo_b64 else ""
+    f'style="width:32px;height:32px;object-fit:contain;border-radius:6px;">'
+    if _logo_b64 else "🏛️"
 )
 st.markdown(
-    f'<div style="text-align:center;margin-top:-10px;">'
+    f'<div class="chat-header">'
     f'{_hdr_logo}'
-    f'<h1 style="font-size:28px;font-weight:700;margin-bottom:2px;margin-top:0;">'
-    f'Samridhi AI</h1>'
-    f'<p style="font-size:14px;color:{_C["muted"]};margin-top:0;">'
-    f'AI Assistant &mdash; M-CADWM &amp; SMIS</p>'
+    f'<div>'
+    f'<div class="title">Samridhi AI</div>'
+    f'<div class="subtitle">AI Assistant — M-CADWM &amp; SMIS</div>'
     f'</div>'
-    f'<div class="samridhi-header-hr"></div>',
+    f'</div>',
     unsafe_allow_html=True,
 )
-
-# ══════════════════════════════════════════════════════════════
-# WELCOME MESSAGE INIT
-# ══════════════════════════════════════════════════════════════
-if not st.session_state.messages:
-    st.session_state.messages = [
-        {"role": "assistant", "content": ui["welcome"], "follow_ups": [], "layer": ""}
-    ]
 
 # ══════════════════════════════════════════════════════════════
 # HELPERS
@@ -482,40 +530,30 @@ def _strip_source(text: str) -> str:
 
 def _source_badge(layer: str):
     badge_map = {
-        "faiss":    ("src-badge-green", ui.get("badge_faiss", "M-CADWM Official Documents")),
-        "live":     ("src-badge-amber", ui.get("badge_live",  "cadwm.gov.in (live)")),
-        "fallback": ("src-badge-grey",  ui.get("badge_general", "General Knowledge")),
-        "cache":    ("src-badge-grey",  ui.get("badge_cache",  "Retrieved from cache")),
+        "faiss":    ("src-badge-green", ui.get("badge_faiss",   "✦ M-CADWM Official Documents")),
+        "live":     ("src-badge-amber", ui.get("badge_live",    "◉ cadwm.gov.in (live)")),
+        "fallback": ("src-badge-grey",  ui.get("badge_general", "◈ General Knowledge")),
+        "cache":    ("src-badge-grey",  ui.get("badge_cache",   "◇ Retrieved from cache")),
     }
     if layer not in badge_map:
         return
     css_cls, label = badge_map[layer]
-    st.markdown(
-        f'<span class="src-badge {css_cls}">{label}</span>',
-        unsafe_allow_html=True,
-    )
+    st.markdown(f'<span class="src-badge {css_cls}">{label}</span>', unsafe_allow_html=True)
 
 def _follow_ups(fups: list, msg_idx: int):
     if not fups:
         return
-    st.markdown(
-        f'<div style="font-size:13px;font-weight:600;color:{_C["muted"]};'
-        f'margin:10px 0 6px 0;">{ui["follow_header"]}</div>',
-        unsafe_allow_html=True,
-    )
+    st.markdown('<div class="follow-label">You may also ask:</div>', unsafe_allow_html=True)
     for _fi, fq in enumerate(fups):
         if st.button(fq, key=f"fup_{msg_idx}_{_fi}", use_container_width=True):
             st.session_state.followup_queue = fq
             st.rerun()
 
 def _copy_btn(content: str):
-    # Encode content as base64 to avoid any quote/newline escaping issues
     b64 = base64.b64encode(content.encode("utf-8")).decode("utf-8")
     st.markdown(
-        f'<button class="samridhi-copy-btn" '
-        f'data-copy="{b64}" '
-        f'onclick="'
-        f'var t=atob(this.getAttribute(\'data-copy\'));'
+        f'<button class="samridhi-copy-btn" data-copy="{b64}" '
+        f'onclick="var t=atob(this.getAttribute(\'data-copy\'));'
         f'navigator.clipboard.writeText(t).then(()=>{{this.textContent=\'✓ Copied\';}});">'
         f'{ui["copy_label"]}</button>',
         unsafe_allow_html=True,
@@ -544,7 +582,7 @@ def _feedback(i: int, layer: str = ""):
         st.caption(ui["fb_up"] if st.session_state[rk] == "up" else ui["fb_dn"])
 
 # ══════════════════════════════════════════════════════════════
-# FOLLOW-UP QUEUE PROCESSOR
+# FOLLOW-UP QUEUE
 # ══════════════════════════════════════════════════════════════
 def _process_followup_queue():
     q = st.session_state.followup_queue
@@ -570,11 +608,19 @@ def _process_followup_queue():
 _process_followup_queue()
 
 # ══════════════════════════════════════════════════════════════
-# CHAT HISTORY RENDER
+# WELCOME MESSAGE
+# ══════════════════════════════════════════════════════════════
+if not st.session_state.messages:
+    st.session_state.messages = [
+        {"role": "assistant", "content": ui["welcome"], "follow_ups": [], "layer": ""}
+    ]
+
+# ══════════════════════════════════════════════════════════════
+# CHAT HISTORY
 # ══════════════════════════════════════════════════════════════
 for _i, _msg in enumerate(st.session_state.messages):
     with st.chat_message(_msg["role"]):
-        _layer         = _msg.get("layer", "")
+        _layer          = _msg.get("layer", "")
         _is_substantive = _layer in _FEEDBACK_LAYERS
 
         if _msg["role"] == "assistant" and _is_substantive:
@@ -586,12 +632,10 @@ for _i, _msg in enumerate(st.session_state.messages):
             else _msg["content"]
         )
         st.markdown(_display)
-
         _follow_ups(_msg.get("follow_ups", []), _i)
 
         if _msg["role"] == "assistant" and _is_substantive:
             _copy_btn(_msg["content"])
-
         if _msg["role"] == "assistant":
             _feedback(_i, _layer)
 
@@ -625,7 +669,6 @@ if question := st.chat_input(ui["placeholder"]):
         _source_badge(r.layer)
         st.markdown(_strip_source(r.answer))
         st.session_state.last_answer = r.answer
-
         _follow_ups(r.follow_ups, len(st.session_state.messages))
 
         if r.layer in _FEEDBACK_LAYERS:
@@ -637,7 +680,6 @@ if question := st.chat_input(ui["placeholder"]):
             del st.session_state.pending_feedback[min(st.session_state.pending_feedback)]
 
         _feedback(_idx, r.layer)
-
         st.session_state.messages.append({
             "role": "assistant", "content": r.answer,
             "follow_ups": r.follow_ups, "layer": r.layer,
@@ -649,3 +691,14 @@ if question := st.chat_input(ui["placeholder"]):
             if _tts_result:
                 autoplay_audio(_tts_result[0], st)
 
+# ══════════════════════════════════════════════════════════════
+# FOOTER
+# ══════════════════════════════════════════════════════════════
+st.markdown(
+    '<div class="samridhi-footer">'
+    'Copyright &copy; 2025 &nbsp;·&nbsp; All Rights Reserved &nbsp;·&nbsp; '
+    'CADWM Wing, Department of Water Resources, River Development &amp; '
+    'Ganga Rejuvenation, Ministry of Jal Shakti, Government of India'
+    '</div>',
+    unsafe_allow_html=True,
+)
