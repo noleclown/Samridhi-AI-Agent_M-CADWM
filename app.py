@@ -109,9 +109,9 @@ html,body,.stApp,[data-testid="stAppViewContainer"]{{
 [data-testid="stMain"]{{background:var(--bg)!important;padding:0!important;}}
 
 /* Hide functional lang buttons — HTML ones are shown instead */
-[data-testid="stSidebar"] [data-testid="column"] .stButton>button {
+[data-testid="stSidebar"] [data-testid="column"] .stButton>button {{
   display: none !important;
-}
+}}
 
 /* Sidebar */
 [data-testid="stSidebar"]{{
